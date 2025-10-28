@@ -1,3 +1,7 @@
 setuptools
+pundas
+numpy
+seaborn
+matplotlib
 
 -e .
