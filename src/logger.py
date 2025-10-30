@@ -19,9 +19,9 @@ logging.basicConfig(
     level=logging.INFO,
 )
 
-logger = logging.getLogger(__name__)
 
 # Test block
 if __name__ == "__main__":
-    logging.info("Logging file is working")
+    logger = logging.getLogger(__name__)
+    logger.info("Logging file is working")
     print(f"Log file created at: {LOG_FILE_PATH}")

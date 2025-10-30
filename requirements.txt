@@ -1,7 +1,10 @@
 setuptools
-pundas
+pandas
 numpy
 seaborn
+scikit-learn
 matplotlib
-
--e .
+notebook
+catboost
+xgboost
+# -e .

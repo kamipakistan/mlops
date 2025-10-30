@@ -1,6 +1,7 @@
 import sys
-from logger import logger  # Import your custom logger
+from src.logger import logging
 
+logger = logging.getLogger(__name__)
 
 def error_message_detail(error, error_detail: sys):
     _, _, exc_tb = error_detail.exc_info()
@@ -21,7 +22,6 @@ class CustomException(Exception):
 
     def __str__(self):
         return self.error_message
-
 
 # Test block
 if __name__ == "__main__":
