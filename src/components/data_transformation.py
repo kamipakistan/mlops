@@ -11,6 +11,7 @@ from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
 from src.exception import CustomException
 from src.logger import logging
+from src.utils import save_object
 
 # Initialize logger for this specific module
 logger = logging.getLogger(__name__)
@@ -127,6 +128,13 @@ class DataTransformation:
             test_arr = np.c_[input_feature_test_arr, np.array(target_feature_test_df)]
 
             logger.info(f"Preprocessing completed and saved at {self.data_transformation_config.preprocessor_obj_file_path}")
+
+            save_object(
+
+                file_path=self.data_transformation_config.preprocessor_obj_file_path,
+                obj=preprocessing_obj
+
+            )
 
             return (
                 train_arr,
