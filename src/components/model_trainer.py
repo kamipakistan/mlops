@@ -1,19 +1,13 @@
 import os
 import sys
 from dataclasses import dataclass
-
-from catboost import CatBoostRegressor
-from sklearn.ensemble import AdaBoostRegressor, GradientBoostingRegressor, RandomForestRegressor
-from sklearn.linear_model import LinearRegression
+import numpy as np
 from sklearn.metrics import r2_score
-from sklearn.neighbors import KNeighborsRegressor
-from sklearn.tree import DecisionTreeRegressor
-from xgboost import XGBRegressor
-
+from src.models import get_regression_models, regression_param_grids
 from src.exception import CustomException
 from src.logger import logging
-from src.utils import save_object, evaluate_model
-
+from src.utils import save_object
+from sklearn.model_selection import GridSearchCV
 logger = logging.getLogger(__name__)
 
 
@@ -32,58 +26,80 @@ class ModelTrainer:
     def __init__(self):
         self.model_trainer_config = ModelTrainerConfig()
 
-    def initiate_model_trainer(self, train_array, test_array):
+        # Baseline models
+        self.models = get_regression_models()
+
+        # Hyperparameters for tuning only best model later
+        self.param_grids = regression_param_grids
+
+
+    def train_baseline_and_get_best(self, train_arr, test_arr):
         try:
-            logger.info("Splitting train and test data")
+            logging.info("Training baseline models...")
 
-            # Split into features and target variable
-            X_train, y_train, X_test, y_test = (
-                train_array[:, :-1],
-                train_array[:, -1],
-                test_array[:, :-1],
-                test_array[:, -1]
-            )
+            X_train, y_train = train_arr[:, :-1], train_arr[:, -1]
+            X_test, y_test = test_arr[:, :-1], test_arr[:, -1]
 
-            # Define models to evaluate
-            models = {
-                "Random Forest": RandomForestRegressor(),
-                "Decision Tree": DecisionTreeRegressor(),
-                "Gradient Boosting": GradientBoostingRegressor(),
-                "Linear Regression": LinearRegression(),
-                "XGBoost": XGBRegressor(),
-                "CatBoost": CatBoostRegressor(verbose=False),
-                "AdaBoost": AdaBoostRegressor(),
-                'KNeighborsRegressor': KNeighborsRegressor()
-            }
+            best_model = None
+            best_model_name = ""
+            best_score = -np.inf
 
-            logger.info("Evaluating all models...")
-            model_report: dict = evaluate_model(X_train, y_train, X_test, y_test, models)
+            for name, model in self.models.items():
+                model.fit(X_train, y_train)
+                preds = model.predict(X_test)
+                score = r2_score(y_test, preds)
 
-            # Determine best model
-            best_model_score = max(model_report.values())
-            best_model_name = list(model_report.keys())[list(model_report.values()).index(best_model_score)]
-            best_model = models[best_model_name]
+                logging.info(f"{name} R2 Score = {score}")
 
-            logger.info(f"Best model identified: {best_model_name} with score {best_model_score}")
+                if score > best_score:
+                    best_score = score
+                    best_model = model
+                    best_model_name = name
 
-            if best_model_score < 0.70:
-                logger.error("No suitable model found (R2 < 0.70)")
-                raise CustomException("No good model found!")
+            logging.info(f"Best Baseline Model: {best_model_name} with score {best_score}")
 
-            # Refit best model on full training data before saving
-            logger.info("Training the best model on full training data...")
-            best_model.fit(X_train, y_train)
+            # Save baseline best model temporarily
+            save_object("artifacts/best_baseline_model.pkl", best_model)
 
-            # Save model
-            save_object(file_path=self.model_trainer_config.trained_model_file_path, obj=best_model)
-            logger.info(f"Model saved successfully at {self.model_trainer_config.trained_model_file_path}")
+            return best_score, best_model_name
 
-            # Predict & report score
-            predictions = best_model.predict(X_test)
-            r2 = r2_score(y_test, predictions)
-            logger.info(f"Final R2 Score: {r2}")
+        except Exception as e:
+            raise CustomException(e, sys)
 
-            return r2
+
+    def tune_and_train_best_model(self, train_arr, test_arr, best_model_name):
+        try:
+            logging.info(f"Hyperparameter tuning for {best_model_name}...")
+
+            X_train, y_train = train_arr[:, :-1], train_arr[:, -1]
+            X_test, y_test = test_arr[:, :-1], test_arr[:, -1]
+
+            model = self.models[best_model_name]
+            param_grid = self.param_grids[best_model_name]
+
+            # If no params, skip tuning
+            if not param_grid:
+                logging.info("No hyperparameters to tune, using baseline model.")
+                best_params_model = model
+
+            else:
+                grid = GridSearchCV(model, param_grid, cv=3, n_jobs=-1, verbose=1)
+                grid.fit(X_train, y_train)
+
+                best_params_model = grid.best_estimator_
+                logging.info(f"Best params for {best_model_name}: {grid.best_params_}")
+
+            # Retrain on full dataset with best model
+            best_params_model.fit(X_train, y_train)
+            preds = best_params_model.predict(X_test)
+            tuned_score = r2_score(y_test, preds)
+
+            logging.info(f"Tuned Model Score: {tuned_score}")
+
+            # Save final tuned model
+            save_object(self.model_trainer_config.trained_model_file_path, best_params_model)
+
+            return tuned_score, best_model_name
 
         except Exception as e:
             raise CustomException(e, sys)

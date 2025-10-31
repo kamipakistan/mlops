@@ -5,7 +5,6 @@ from src.logger import logging
 import pandas as pd
 
 logger = logging.getLogger(__name__)
-logger.info("Hello from data_ingestion")
 
 from sklearn.model_selection import train_test_split
 from dataclasses import dataclass
@@ -58,4 +57,10 @@ if __name__ == "__main__":
     train_arr, test_arr, _ = data_transformation.initiate_data_transformation(train_data, test_data)
 
     model_trainer = ModelTrainer()
-    print(model_trainer.initiate_model_trainer(train_arr, test_arr))
+    best_score, best_model_name = model_trainer.train_baseline_and_get_best(train_arr, test_arr)
+
+    print(best_model_name, best_score)
+
+    tuned_score, best_model_name = model_trainer.tune_and_train_best_model(train_arr, test_arr, best_model_name)
+
+    print(tuned_score, best_model_name)
