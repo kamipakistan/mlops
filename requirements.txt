@@ -8,4 +8,5 @@ notebook
 catboost
 xgboost
 dill
+fastapi[standard]
 # -e .
